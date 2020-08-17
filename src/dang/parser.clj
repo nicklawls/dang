@@ -38,26 +38,45 @@
     "))
 
 (defn parse-ast
-  "Run the parser and apply transforms
-   
-   Probably should save the transform step for meander"
+  "Run the parser and apply transforms to keep the AST minimal
+
+   TODO: spec the shape of the AST"
   [input]
   (->>
    (parser input)
    (insta/transform
-    {:bool-lit read-string
+    {;; literals are the corresponding clj primitives
+     :bool-lit read-string
      :nat-lit read-string
-     :expr identity
-     :app-arg identity
-     :var symbol
-     :type vector
-     :arrow (comp vec concat)
-     :paren-arrow identity
-     :paren-expr identity
+
+     ;; builtins are keywords
      :builtin #(keyword (str *ns*) %1)
+
+     ;; main expr nodes just wrap other combos,
+     ;; extra tag is redundant
+     :expr identity
+     :paren-expr identity
+     :app-arg identity
+
+     ;; binding names are symbols, because we got em
+     :var symbol
+
+     ;; types decls are either a single type keyword
+     ;; or a binary tree of type keywords
+     :type identity
+     :arrow vector
+     :paren-arrow identity
      :type-lit #(keyword
                  (str *ns*)
-                 (clojure.string/lower-case %1))})))
+                 (clojure.string/lower-case %1))
+
+     ;; un-messed-with are
+     ;; [:fix <fix-val>]
+     ;; [:let <name> <binding> <body>]
+     ;; [:lam <name> <type> <body>]
+     ;; [:app <fn> <arg>]
+     ;; [:if-then-else <cond> <if-true> <if-false>]
+     })))
 
 (comment
   (parse-ast "true")
@@ -70,4 +89,5 @@
   (parse-ast "let flEEEgle = 145 in succ flEEgle")
   (parse-ast "\\x : Nat. x")
   (parse-ast "fix (\\x : Nat -> Nat. 1)")
-  (parse-ast "fix (\\x : Nat -> (Nat -> Bool). 1)"))
+  (parse-ast "fix (\\x : Nat -> (Nat -> Bool). 1)")
+  (parse-ast "fix (\\x : Nat -> ((Bool -> Nat) -> Bool). 1)"))
