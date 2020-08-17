@@ -61,7 +61,7 @@
      ;; binding names are symbols, because we got em
      :var symbol
 
-     ;; types decls are either a single type keyword
+     ;; type decls are either a single type keyword
      ;; or a binary tree of type keywords
      :type identity
      :arrow vector
@@ -84,6 +84,7 @@
   (parse-ast "123")
   (parse-ast "123 
         456")
+  (parse-ast "succ 123 is-zero hi-mom__123_bleh")
   (parse-ast "(succ 123) is-zero hi-mom__123_bleh")
   (parse-ast "if 32 then 52 else 42")
   (parse-ast "let flEEEgle = 145 in succ flEEgle")
