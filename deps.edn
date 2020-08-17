@@ -1,3 +1,5 @@
 {:paths ["src"]
  :deps {instaparse
-        {:mvn/version "1.4.10"}}}
+        {:mvn/version "1.4.10"}
+        meander/epsilon
+        {:mvn/version "0.0.480"}}}
