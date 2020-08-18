@@ -23,27 +23,23 @@
 (defn typecheck-ctx [expr ctx]
   (m/match expr
     (m/pred number?) ::nat
+
     (m/pred boolean?) ::boolean
 
-    [:if-then-else ?cond ?if-true ?if-false]
-    (let [cond-type (typecheck-ctx ?cond ctx)
-          if-type (typecheck-ctx ?if-true ctx)
-          else-type (typecheck-ctx ?if-false ctx)]
-      (when
-       (and (= cond-type ::boolean)
-            (= if-type else-type))
-        if-type))
+    [:if-then-else
+     (m/app #(typecheck-ctx %1 ctx) ::boolean)
+     (m/app #(typecheck-ctx %1 ctx) ?body-type)
+     (m/app #(typecheck-ctx %1 ctx) ?body-type)]
+    ?body-type
 
-    (m/keyword _ _ :as ?builtin)
-    (when (builtin? ?builtin) [::nat ::nat])
+    (m/keyword _ _ :as (m/pred builtin?))
+    [::nat ::nat]
 
-    [:app ?fn ?arg]
+    [:app
+     (m/app #(typecheck-ctx %1 ctx) [?arg-type ?return-type])
+     (m/app #(typecheck-ctx %1 ctx) ?arg-type)]
     ;; types are binary trees where branches are arrows
-    (let [fn-type (typecheck-ctx ?fn ctx)
-          arg-type (safe-head fn-type)
-          return-type (safe-second fn-type)]
-
-      (when (= arg-type (typecheck-ctx ?arg ctx)) return-type))
+    ?return-type
 
 
     _other nil))
