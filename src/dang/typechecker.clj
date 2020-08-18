@@ -7,61 +7,78 @@
               :dang.ast/pred
               :dang.ast/is-zero} x)))
 
-;; some things never change
-(defn- safe-head [coll]
-  (try (first coll) (catch Exception _e nil)))
+(defn- typecheck-ctx
+  "inner helper that takes a context map and threads it through"
+  [expr ctx]
+  (let [;; Helpers
 
-(defn- safe-second [coll]
-  (try (second coll) (catch Exception _e nil)))
+        ;; typecheck with the current context
+        check #(typecheck-ctx %1 ctx)
 
-(comment
-  (safe-head [[123]])
-  (safe-second 'jdfkdf))
+        ;; check with additional binding
+        check-with (fn [k v] #(typecheck-ctx %1 (assoc ctx k v)))]
 
-;; check symbols against context
-;; make sure symbol names never clash/ always shadow
-(defn typecheck-ctx [expr ctx]
-  (m/match expr
-    (m/pred number?) :dang.ast/nat
+    (m/match expr
+      ;; primitives are primitive types
+      (m/pred number?)
+      :dang.ast/nat
 
-    (m/pred boolean?) :dang.ast/boolean
+      (m/pred boolean?)
+      :dang.ast/boolean
 
-    [:if-then-else
-     (m/app #(typecheck-ctx %1 ctx) :dang.ast/boolean)
-     (m/app #(typecheck-ctx %1 ctx) (m/not nil) ?body-type)
-     (m/app #(typecheck-ctx %1 ctx) ?body-type)]
-    ?body-type
+      ;; condition must be boolean
+      ;; then and else branches must match
+      [:if-then-else
+       (m/app check :dang.ast/boolean)
+       (m/app check (m/not nil) ?body-type)
+       (m/app check ?body-type)]
+      ?body-type
 
-    (m/keyword _ _ :as (m/pred builtin?))
-    [:dang.ast/nat :dang.ast/nat]
+      ;; keywords are builtins
+      ;; all of which are Nat -> Nat 
+      (m/keyword _ _ :as (m/pred builtin?))
+      [:dang.ast/nat :dang.ast/nat]
 
-    (m/symbol _ _ :as (m/app ctx (m/not nil) ?var-type))
-    ?var-type
+      ;; symbols are vars and should be looked up in ctx
+      ;; note that in clojure (map key) === (get map key)
+      (m/symbol _ _ :as (m/app ctx (m/not nil) ?var-type))
+      ?var-type
 
-    [:let ?name ?binding ?body]
-    (typecheck-ctx
-     ?body
-     (assoc ctx ?name (typecheck-ctx ?binding ctx)))
+      ;; check the binding
+      ;; check the body with binding and its type in context
+      [:let ?name (m/app check (m/not nil) ?binding-type)
+       (m/app (check-with ?name ?binding-type) (m/not nil) ?body-type)]
+      ?body-type
 
-    [:app
-     (m/app #(typecheck-ctx %1 ctx)
-            [?arg-type (m/and (m/not nil) ?return-type)])
-     (m/app #(typecheck-ctx %1 ctx) ?arg-type)]
-    ;; types are binary trees where branches are arrows
-    ?return-type
+      ;; check the fn, split it into argument and return types
+      ;; check the arg type
+      ;; if expected and observed argument types line up, return return type
+      [:app
+       (m/app check [?arg-type (m/and (m/not nil) ?return-type)])
+       (m/app check ?arg-type)]
+      ?return-type
 
-    [:lam ?name ?var-type
-     (m/app #(typecheck-ctx %1 (assoc ctx ?name ?var-type))
-            (m/not nil)
-            ?body-type)]
-    [?var-type ?body-type]
+      ;; add arument and its type to context, check the body
+      ;; result is a function from var's type to body's type
+      [:lam ?name ?var-type
+       (m/app (check-with ?name ?var-type) (m/not nil) ?body-type)]
+      [?var-type ?body-type]
 
-    [:fix (m/app #(typecheck-ctx %1 ctx) [?fixtype ?fixtype])]
-    ?fixtype
+      ;; All I remember is fix :: (a -> a) -> a
+      [:fix (m/app check [?fixtype ?fixtype])]
+      ?fixtype
 
-    _other nil))
+      ;; no match? type error
+      _otherwise nil)))
 
-(defn typecheck [expr] (typecheck-ctx expr {}))
+(defn typecheck
+  "Takes arbitrary expr 
+   
+   If sucessful returns nat, boolean, or a binary tree of types representing a function type
+   
+   If failure returns nil
+   "
+  [expr] (typecheck-ctx expr {}))
 
 (comment ('himom (assoc {} 'himom :nat)))
 (comment
@@ -77,8 +94,8 @@
   (typecheck [:app :dang.ast/is-zero 123])
   (typecheck [:app :dang.ast/pred 33333])
   (typecheck [:app :dang.ast/succ 33333])
-  (typecheck-ctx 'foobar {'foobar ::boolean})
-  (typecheck-ctx 'bazzle {'foobar ::boolean})
+  (typecheck-ctx 'foobar {'foobar :dang.ast/boolean})
+  (typecheck-ctx 'bazzle {'foobar :dang.ast/boolean})
   (typecheck [:let 'foobar 32 [:app :dang.ast/succ 'foobar]])
   (typecheck [:let 'foobar 32 [:let 'foobar true 'foobar]])
   (typecheck [:lam 'foobar :dang.ast/boolean [:if-then-else 'foobar 32 33]])
