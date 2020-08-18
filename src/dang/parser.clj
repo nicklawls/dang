@@ -50,7 +50,7 @@
      :nat-lit read-string
 
      ;; builtins are keywords
-     :builtin #(keyword (str *ns*) %1)
+     :builtin #(keyword "dang.ast" %1)
 
      ;; main expr nodes just wrap other combos,
      ;; extra tag is redundant
@@ -67,7 +67,7 @@
      :arrow vector
      :paren-arrow identity
      :type-lit #(keyword
-                 (str *ns*)
+                 "dang.ast"
                  (clojure.string/lower-case %1))
 
      ;; un-messed-with are
