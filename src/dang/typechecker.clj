@@ -2,11 +2,6 @@
   (:require
    [meander.epsilon :as m]))
 
-(defn- builtin? [x]
-  (boolean (#{:dang.ast/succ
-              :dang.ast/pred
-              :dang.ast/is-zero} x)))
-
 (defn- typecheck-ctx
   "inner helper that takes a context map and threads it through"
   [expr ctx]
@@ -35,8 +30,11 @@
       ?body-type
 
       ;; keywords are builtins
-      ;; all of which are Nat -> Nat 
-      (m/keyword _ _ :as (m/pred builtin?))
+      ;; is-zero is Nat -> Bool
+      :dang.ast/is-zero
+      [:dang.ast/nat :dang.ast/boolean]
+      ;; succ/pred are Nat -> Nat 
+      (m/keyword "dang.ast" (m/or "succ" "pred"))
       [:dang.ast/nat :dang.ast/nat]
 
       ;; symbols are vars and should be looked up in ctx
@@ -68,6 +66,7 @@
       [:fix (m/app check [?fixtype ?fixtype])]
       ?fixtype
 
+      ;; TODO: could return error maps and forward them
       ;; no match? type error
       _otherwise nil)))
 
