@@ -1,49 +1,49 @@
 (ns dang.evaluate
   (:require
-   [meander.epsilon :as m]
-   [meander.strategy.epsilon :as r]))
+   [meander.epsilon :as m]))
 
 (def z-ast
-  '[:lam f ::idk
+  '[:lam f ::ignore
     [:app
-     [:lam x ::idk [:app f [:lam v ::idk [:app x [:app x v]]]]]
-     [:lam x ::idk [:app f [:lam v ::idk [:app x [:app x v]]]]]]])
+     [:lam x ::ignore [:app f [:lam v ::ignore [:app x [:app x v]]]]]
+     [:lam x ::ignore [:app f [:lam v ::ignore [:app x [:app x v]]]]]]])
 
 (defn- evaluate-ctx
   [expr ctx]
-  (m/match expr
+  (let [eval-curr #(evaluate-ctx % ctx)]
+    (m/match expr
 
-    (m/symbol _ _ :as ?sym)
-    (get ctx ?sym [::symbol-not-found ctx ?sym])
+      (m/symbol _ _ :as ?sym)
+      (get ctx ?sym [::symbol-not-found ctx ?sym])
 
-    [:if-then-else ?cond ?if-body ?else-body]
-    (if (evaluate-ctx ?cond ctx)
-      (evaluate-ctx ?if-body ctx)
-      (evaluate-ctx ?else-body ctx))
+      [:if-then-else ?cond ?if-body ?else-body]
+      (if (eval-curr ?cond)
+        (eval-curr ?if-body)
+        (eval-curr ?else-body))
 
-    [:app :dang.ast/is-zero ?arg] (= 0 (evaluate-ctx ?arg ctx))
+      [:app :dang.ast/is-zero ?arg] (= 0 (eval-curr ?arg))
 
-    [:app :dang.ast/succ ?arg] (+ 1 (evaluate-ctx ?arg ctx))
+      [:app :dang.ast/succ ?arg] (+ 1 (eval-curr ?arg))
 
-    [:app :dang.ast/pred ?arg] (max 0 (- (evaluate-ctx ?arg ctx) 1))
+      [:app :dang.ast/pred ?arg] (max 0 (- (eval-curr ?arg) 1))
 
-    ;; sugar for app over lam
-    [:let ?name ?binding ?body]
-    (evaluate-ctx
-     [:app [:lam ?name ::ignore ?body] ?binding]
-     ctx)
+      ;; sugar for app over lam
+      [:let ?name ?binding ?body]
+      (evaluate-ctx
+       [:app [:lam ?name ::ignore ?body] ?binding]
+       ctx)
 
-    ;; app's first arg is anything that evaluates to a lambda: symbol or lambda
-    [:app (m/app #(evaluate-ctx % ctx) [:lam ?name _ ?body]) ?arg]
-    (evaluate-ctx
-     ?body
-     (assoc ctx ?name (evaluate-ctx ?arg ctx)))
+      ;; app's first arg is anything that evaluates to a lambda
+      [:app (m/app eval-curr [:lam ?name _ ?body]) ?arg]
+      (evaluate-ctx
+       ?body
+       (assoc ctx ?name (eval-curr ?arg)))
 
-    ;; sugar for applying the Z combinator
-    [:fix ?lambda]
-    (evaluate-ctx [:app z-ast ?lambda] ctx)
+      ;; sugar for applying the Z combinator
+      [:fix ?lambda]
+      (evaluate-ctx [:app z-ast ?lambda] ctx)
 
-    ?otherwise ?otherwise))
+      ?otherwise ?otherwise)))
 
 
 
@@ -65,5 +65,5 @@
   (evaluate [:if-then-else false 1 0])
   (evaluate [:app [:lam 'foo :dang.ast/nat 'foo] 0])
   (evaluate [:let 'foo 32 [:app :dang.ast/succ 'foo]])
-  (evaluate [:app [:lam 'foo ::idk 32] true])
+  (evaluate [:app [:lam 'foo ::ignore 32] true])
   (evaluate [:fix [:lam 'x :dang.ast/nat 1]]))
