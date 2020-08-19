@@ -59,25 +59,11 @@
    or nil, if a type or logic error occurs"
   [expr] (evaluate-ctx expr {}))
 
-(evaluate [:app :dang.ast/is-zero 0])
-(evaluate [:app :dang.ast/succ 1])
-(evaluate [:if-then-else false 1 0])
-(evaluate [:app [:lam 'foo :dang.ast/nat 'foo] 0])
-(evaluate [:let 'foo 32 [:app :dang.ast/succ 'foo]])
-(evaluate [:app [:lam 'foo ::idk 32] true])
-(evaluate [:fix [:lam 'x :dang.ast/nat 1]])
-
-
-;; have to make it a top-down strategy, probably need m/let
-(defn substitute [expr variable replacement]
-  (m/match [expr variable]
-    [(m/symbol _ _ :as ?var) ?var] replacement
-    ?otherwise ?otherwise))
-
-(def reduce-lam-app
-  (r/match
-   [:app [:lam ?name _ ?body] ?arg] (substitute ?body ?name ?arg)))
-
-
-(substitute 'foobar 'foobar true)
-(reduce-lam-app [:app [:lam 'foobar :dang.ast/boolean 'foobar] true])
+(comment
+  (evaluate [:app :dang.ast/is-zero 0])
+  (evaluate [:app :dang.ast/succ 1])
+  (evaluate [:if-then-else false 1 0])
+  (evaluate [:app [:lam 'foo :dang.ast/nat 'foo] 0])
+  (evaluate [:let 'foo 32 [:app :dang.ast/succ 'foo]])
+  (evaluate [:app [:lam 'foo ::idk 32] true])
+  (evaluate [:fix [:lam 'x :dang.ast/nat 1]]))
