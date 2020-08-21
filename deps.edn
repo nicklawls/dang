@@ -2,4 +2,7 @@
  :deps {instaparse
         {:mvn/version "1.4.10"}
         meander/epsilon
-        {:mvn/version "0.0.480"}}}
+        {:mvn/version "0.0.480"}}
+ :aliases {:dang-socket
+           {:jvm-opts
+            ["-Dclojure.server.repl={:port,5575,:accept,dang.main/server}"]}}}

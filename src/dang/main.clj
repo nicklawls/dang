@@ -2,21 +2,23 @@
   (:require [clojure.string]
             [clojure.repl]
             [dang.parser]
-            [dang.typechecker]))
+            [dang.typechecker]
+            [dang.evaluate]))
 
-(defn println-error [& more]
-  (.println *err* (clojure.string/join " " more)))
-
-(defn -main []
-  (let [syntax-str (read-line)
+(defn eval-pcf [str]
+  (let [syntax-str (clojure.string/trim str)
         ast (dang.parser/parse-ast syntax-str)]
-    (println-error ast)
-    (if (:reason ast) ;; :reason means errors
-      (System/exit 2)
-      (if
-       (nil? (dang.typechecker/typecheck ast))
-        (System/exit 3)
-        (println "not done yet son")))))
+    (if (:reason ast)
+      {:parse-error  (:reason ast)}
+      (if (nil? (dang.typechecker/typecheck ast))
+        :type-error
+        ;; TODO: error handling for botched evaluation
+        (dang.evaluate/evaluate ast)))))
+
+;; TODO: figure out how to update socket server without repl restart
+(defn server []
+  (let [input (read-line)]
+    (println (eval-pcf input))))
 
 (comment
   (nil? (dang.typechecker/typecheck (dang.parser/parse-ast "true")))
