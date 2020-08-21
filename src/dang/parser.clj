@@ -34,7 +34,7 @@
     nat-lit = #'[0-9]+'
     
     whitespace = #'(\\s|\\n)+'
-    builtin = 'succ' | 'pred' | 'is-zero'
+    builtin = 'suc' | 'pred' | 'is-zero'
     "))
 
 (defn parse-ast
@@ -50,7 +50,7 @@
      :nat-lit read-string
 
      ;; builtins are keywords
-     :builtin #(keyword "dang.ast" %1)
+     :builtin #(if (= "suc" %) :dang.ast/succ (keyword "dang.ast" %))
 
      ;; main expr nodes just wrap other combos,
      ;; extra tag is redundant
