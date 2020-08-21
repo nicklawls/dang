@@ -29,9 +29,8 @@
 
       ;; sugar for app over lam
       [:let ?name ?binding ?body]
-      (evaluate-ctx
-       [:app [:lam ?name ::ignore ?body] ?binding]
-       ctx)
+      (eval-curr
+       [:app [:lam ?name ::ignore ?body] ?binding])
 
       ;; app's first arg is anything that evaluates to a lambda
       [:app (m/app eval-curr [:lam ?name _ ?body]) ?arg]
@@ -41,7 +40,7 @@
 
       ;; sugar for applying the Z combinator
       [:fix ?lambda]
-      (evaluate-ctx [:app z-ast ?lambda] ctx)
+      (eval-curr [:app z-ast ?lambda])
 
       ?otherwise ?otherwise)))
 
