@@ -1,52 +1,190 @@
 (ns dang.evaluate
   (:require
-   [meander.epsilon :as m]))
+   [meander.epsilon :as m]
+   [clojure.set :as set]))
+
 
 (def z-ast
   '[:lam f ::ignore
     [:app
      [:lam x ::ignore [:app f [:lam v ::ignore [:app x [:app x v]]]]]
-     [:lam x ::ignore [:app f [:lam v ::ignore [:app x [:app x v]]]]]]])
+     [:lam x2 ::ignore [:app f [:lam v2 ::ignore [:app x2 [:app x2 v2]]]]]]])
 
-(defn- evaluate-ctx
-  [expr ctx]
-  (let [eval-curr #(evaluate-ctx % ctx)]
-    (m/match expr
-
-      (m/symbol _ _ :as ?sym)
-      (get ctx ?sym [::symbol-not-found ctx ?sym])
-
-      [:if-then-else ?cond ?if-body ?else-body]
-      (if (eval-curr ?cond)
-        (eval-curr ?if-body)
-        (eval-curr ?else-body))
-
-      [:app :dang.ast/is-zero ?arg] (= 0 (eval-curr ?arg))
-
-      [:app :dang.ast/succ ?arg] (+ 1 (eval-curr ?arg))
-
-      [:app :dang.ast/pred ?arg] (max 0 (- (eval-curr ?arg) 1))
-
-      ;; sugar for app over lam
-      [:let ?name ?binding ?body]
-      (eval-curr
-       [:app [:lam ?name ::ignore ?body] ?binding])
-
-      ;; app's first arg is anything that evaluates to a lambda
-      [:app (m/app eval-curr [:lam ?name _ ?body]) ?arg]
-      (evaluate-ctx
-       ?body
-       (assoc ctx ?name (eval-curr ?arg)))
-
-      ;; sugar for applying the Z combinator
-      [:fix ?lambda]
-      (eval-curr [:app z-ast ?lambda])
-
-      ?otherwise ?otherwise)))
+(def is-zero #(= 0 %))
 
 
+(def suc #(+ 1 %))
 
-(defn evaluate
+
+(def pred #(max 0 (- % 1)))
+
+
+(defn- free-vars [expr]
+  (m/match expr
+    (m/symbol _ _ :as ?sym) #{?sym}
+
+    [:lam ?var _ ?body]
+    (set/difference (free-vars ?body)  #{?var})
+
+    ;; generalize the rule for app to :if-then-else and :fix    
+    ;; could do as in forcibly-update, but memory variables
+    ;; are siccc
+    [(m/keyword _ _) !xs ...]
+    (apply set/union (mapv free-vars !xs))
+
+    _ #{}))
+
+
+;; might be more subtle, see reference impl
+;; actually, seems equivalent, they just don't 
+;; recurse inside the first lam arg, do another if directly
+(defn- forcibly-replace [var new-sym body]
+  (m/match body
+    (m/pred #(= var %))
+    new-sym
+
+    (m/pred vector?)
+    (mapv #(forcibly-replace var new-sym %) body)
+    _
+    body))
+
+(defn log [string val]
+  (let []
+    (println (str string " : " val))
+    val))
+
+(log "foo" 32)
+
+;; Substitution
+;; e's normal form terms: ie e terms or lambdas applied to terms
+;; x,y terms
+
+;; term match
+;; x{e/x} = e
+
+;; term mismatch
+;; y{e/x} = y 
+
+;; application
+;; (e1 e2){e/x} = (e1{e/x} e2{e/x})
+
+;; lam arg name match
+;; (fun x -> e'){e/x} = fun x -> e' 
+
+;; lam arg name mismatch, no FV
+;; (fun y -> e'){e/x} = fun y -> e'{e/x} if y is not in FV(e)
+
+;; lam arg name mismatch, FV
+;; (fun y -> e'){e/x} = (fun fresh -> ???) y is in FV(e)
+;; 
+(defn- substitute
+  "capture avoiding substitution
+   substitute all instances of `var` in `expr` with `substitution`
+   
+   \"a correct definition of it eluded mathemeticians for centuries\"
+   
+   expr{substitution/var} in the papers
+   
+   `var` is a symbol 
+   `substitution` an expr
+   `expr` an expr
+"
+  [var substitution expr]
+  (m/match [expr var]
+    [(m/symbol _ _ :as ?var-name) ?var-name] substitution
+    [(m/symbol _ _ :as ?var-name) ?no-match] expr
+
+    ;; oh snap, this is lexical scope right here
+    ;; skip the outer variable, whatever evaluation procedure
+    ;; will just apply the evaluated arg next?
+    [[:lam ?var ?type ?body] ?var] ;; (fn [x] (x + x)) x
+    expr
+
+    ;; if we have a free var clash, generate a fresh var
+    ;; and replace the clashing var with it, in both lambda and it's body
+    ;; then substitute as usual
+    ;; otherwise substitute as usual
+    ;;       
+    [[:lam ?lam-var ?type ?body] ?var]
+    (if
+     (contains? (free-vars ?body) ?lam-var)
+
+      (let [new-sym (gensym "subst")
+            new-body
+            (forcibly-replace ?lam-var new-sym ?body)]
+        [:lam new-sym ?type (substitute ?var substitution new-body)]) ;; (fn [y] ())
+
+      ;; double-lam hitting here
+      [:lam ?lam-var ?type (substitute ?var substitution ?body)])
+
+    [[:app ?fn ?arg] _]
+    [:app
+     (substitute var substitution ?fn)
+     (substitute var substitution ?arg)]
+
+    [[:let ?name ?binding ?body] _]
+    (substitute
+     var
+     substitution [:app [:lam ?name ::ignore ?body] ?binding])
+
+    [[:fix ?lambda] _]
+    (substitute [:app z-ast ?lambda])
+
+    [(m/pred vector? ?vec) _]
+    (mapv #(substitute var substitution %) ?vec)
+
+    _ expr))
+
+(defn desugar-fix [fix-lam] [:app z-ast fix-lam])
+
+;; whfn(x)    = x
+;; whnf(\x.e) = (\x.e)
+;; 
+;; whnf(e1) = (\x.e)  &  whnf(e{e2/x}) = e'
+;; ---------------------------------------
+;;            whnf((e1 e2)) = e'
+;;            
+;; whnf(e1) = e1' /= (\x.e)
+;; ------------------------
+;; whnf((e1 e2)) = (e1' e2)
+;; 
+;; whnf(if(e1 e2 e3))
+;; 
+(defn- whnf
+  "evaluates the leftmost outermost redex (reducible expression) 
+   not inside a lambda first
+   "
+  [expr]
+  (m/match expr
+    (m/symbol _ _ :as ?sym) ?sym
+
+    [:lam ?v ?t ?b] [:lam ?v ?t ?b]
+
+    [:app (m/app whnf [:lam ?var _ ?body]) ?arg]
+    (whnf (substitute ?var ?arg ?body))
+
+    [:app (m/app whnf ?reduced) ?arg]
+    [:app ?reduced ?arg]
+
+    ;; what if if-then-else is always implicitly an :app of a (\x )
+
+    ;; ;; must not pass a non-boolean value to clojure if
+    ;; [:if-then-else (m/app whnf (m/pred boolean?) ?cond) ?then ?else]
+    ;; (if ?cond (whnf ?then) (whnf ?else))
+
+    ;; ;; best guess
+    ;; [:if-then-else ?cond ?then ?else]
+    ;; [:if-then-else ?cond (whnf ?then) (whnf ?else)]
+
+    [:let ?name ?binding ?body]
+    (whnf
+     [:app [:lam ?name ::ignore ?body] ?binding])
+
+    [:fix ?fix-lam]
+    (whnf (desugar-fix ?fix-lam))
+    _ expr))
+
+(defn- evaluate
   "evaluate the ast generated by dang.parser into either
    
    a number
@@ -56,13 +194,132 @@
    a lambda
    
    or nil, if a type or logic error occurs"
-  [expr] (evaluate-ctx expr {}))
+  [expr]
+  (let [answer
+        (m/match expr
+    ;; redundant but illustrative
+          (m/symbol _ _ :as ?sym)
+          ?sym
+
+    ;; app's first arg is anything that evaluates to a lambda
+          [:app (m/app whnf [:lam ?name _ ?body]) ?arg]
+          (evaluate
+           (substitute ?name (evaluate ?arg) ?body))
+
+          [:app :dang.ast/is-zero ?arg] (is-zero (evaluate ?arg))
+
+          [:app :dang.ast/succ ?arg] (suc (evaluate ?arg))
+
+          [:app :dang.ast/pred ?arg] (pred (evaluate ?arg))
+
+          [:app (m/app whnf ?reduced) ?arg]
+          [:app (evaluate ?reduced) (evaluate ?arg)]
+
+      ;; sugar for app over lam
+          [:let ?name ?binding ?body]
+          (evaluate
+           [:app [:lam ?name ::ignore ?body] ?binding])
+
+    ;; ;; sugar for applying the Z combinator
+          [:fix ?lambda]
+          (evaluate [:app z-ast ?lambda])
+
+          [:if-then-else
+           (m/app evaluate (m/pred boolean? ?cond))
+           ?if-body
+           ?else-body]
+
+          (if ?cond
+            (evaluate ?if-body)
+            (evaluate ?else-body))
+
+          _ expr)]
+    answer))
+
+
+
+(defn fix-realistic []
+  (evaluate
+   '[:app
+     [:fix
+      [:lam
+       rec
+       [:dang.ast/nat :dang.ast/nat]
+       [:lam bleh :dang.ast/nat
+        [:if-then-else
+         [:app :dang.ast/is-zero bleh]
+         0
+         [:app rec [:app :dang.ast/pred bleh]]]]]]
+     2]))
+
+(->> 32
+     desugar-fix)
+
+
+(fix-realistic)
+(not= 0 (fix-realistic))
+
+;;
+;; This is the kinda thing you want it to generate
+;; 
+;; Note the last lambda
+;; 
+;; I think, its (\x -> 0) because it's 
+;; body is the result of evaluating 
+;; (if is-zero 0 then 0 else ...) on the then branch
+;; wheras for the rest of the iterations returned the else with 
+;;
+"(\\x -> if is-zero x then 0 else 
+    (\\x -> if is-zero x  then 0 else 
+       (\\x -> if is-zero x then 0 else (\\x -> 0) ) 
+    (pred x)) 
+ (pred x)) 
+ 2
+"
+"(\\2 -> if is-zero 2 then 0 else 
+    (\\1 -> if is-zero 1 then 0 else 
+       (\\0 -> if is-zero 0 then 0 else (\\x -> 0) (pred 0) ) 
+    (pred 1)) 
+ (pred 2)) 
+"
+"(\\x -> if is-zero x then 0 else 
+    (\\y -> if is-zero y then 0 else 
+       (\\z -> if is-zero z then 0 else (\\q -> 0) (pred z)) 
+    (pred y)) 
+ (pred x)) 
+"
+
+;; step through the implementation and semantics with this in mind
+(def double-lam
+  '[:lam z
+    :dang.ast/nat
+    [:if-then-else [:app :dang.ast/is-zero z]
+     0
+     [:app [:lam q :dang.ast/nat 0] [:app :dang.ast/pred z]]]])
+
+
+(evaluate [:app double-lam 1])
+
+;; Questions
+;; does each individual function work as expected?
+;; Are my substitution, whnf, and evaluate rules for if-then-else and fix correct?
+;; what's the smallest test case to show what goes wrong?
 
 (comment
+  (evaluate false)
+  (evaluate 2)
   (evaluate [:app :dang.ast/is-zero 0])
   (evaluate [:app :dang.ast/succ 1])
   (evaluate [:if-then-else false 1 0])
   (evaluate [:app [:lam 'foo :dang.ast/nat 'foo] 0])
   (evaluate [:let 'foo 32 [:app :dang.ast/succ 'foo]])
+  (whnf [:app [:lam 'foo ::ignore 32] true])
   (evaluate [:app [:lam 'foo ::ignore 32] true])
+  (whnf [:fix [:lam 'x :dang.ast/nat 1]])
   (evaluate [:fix [:lam 'x :dang.ast/nat 1]]))
+
+
+;; fix (\rec : Nat -> Nat. \x : Nat. 
+;;     if is-zero x then 0 
+;;     else rec (pred x))
+;;   2
