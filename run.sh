@@ -15,7 +15,10 @@ echo out: "$output" 1>&2
 # https://stackoverflow.com/a/44859148
 # wtf I love bash now
 
-if echo "$output" | grep -Eq '^\{:parse-error.+\}$'; then
+if [ -z "$output" ]; then
+    echo empty 1>&2;
+    exit 1
+elif echo "$output" | grep -Eq '^\{:parse-error.+\}$'; then
     echo PARSE 1>&2 ;
     exit 2;
 elif echo "$output" | grep -Eq '^:type-error$'; then
