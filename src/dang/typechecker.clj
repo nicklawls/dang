@@ -3,7 +3,9 @@
    [meander.epsilon :as m]))
 
 (defn- typecheck-ctx
-  "inner helper that takes a context map and threads it through"
+  "Inner helper that takes a context map and threads it through
+   
+   Throws if it encounters a type error"
   [expr ctx]
   (let [;; Helpers
 
@@ -29,6 +31,9 @@
        (m/app check ?body-type)]
       ?body-type
 
+      [:if-then-else _ _ _]
+      (throw (ex-info "Bad if" {:if-type-error [expr ctx]}))
+
       ;; keywords are builtins
       ;; is-zero is Nat -> Bool
       :dang.ast/is-zero
@@ -42,11 +47,17 @@
       (m/symbol _ _ :as (m/app ctx ?var-type))
       ?var-type
 
+      (m/symbol _ _)
+      (throw (ex-info "Symbol not found" {:symbol-type-error [expr ctx]}))
+
       ;; check the binding
       ;; check the body with binding and its type in context
       [:let ?name (m/app check ?binding-type)
        (m/app (check-with ?name ?binding-type) ?body-type)]
       ?body-type
+
+      [:let _ _ _]
+      (throw (ex-info "Badly typed let" {:let-type-error [expr ctx]}))
 
       ;; check the fn, split it into argument and return types
       ;; check the arg type
@@ -56,28 +67,36 @@
        (m/app check ?arg-type)]
       ?return-type
 
+      [:app _ _]
+      (throw (ex-info "Badly typed application" {:app-type-error [expr ctx]}))
+
       ;; add arument and its type to context, check the body
       ;; result is a function from var's type to body's type
       [:lam ?name ?var-type
        (m/app (check-with ?name ?var-type) ?body-type)]
       [?var-type ?body-type]
 
+      [:lam _ _ _]
+      (throw (ex-info "Badly typed lambda" {:lam-type-error [expr ctx]}))
+
       ;; All I remember is fix :: (a -> a) -> a
       [:fix (m/app check [?fixtype ?fixtype])]
       ?fixtype
 
-      ;; TODO: could return error maps and forward them
-      ;; no match? type error
-      _ {:type-error [expr ctx]})))
+      [:fix _]
+      (throw (ex-info "Badly typed fix" {:fix-type-error [expr ctx]}))
+
+      _  (throw (ex-info "no type match" {:no-type-error [expr ctx]})))))
 
 (defn typecheck
   "Takes arbitrary expr 
    
    If sucessful returns nat, boolean, or a binary tree of types representing a function type
    
-   If failure returns nil
+   If failure returns a map explaining the error
    "
-  [expr] (typecheck-ctx expr {}))
+  [expr] (try (typecheck-ctx expr {})
+              (catch Exception e {:type-error (ex-data e)})))
 
 (comment ('himom (assoc {} 'himom :nat)))
 (comment
