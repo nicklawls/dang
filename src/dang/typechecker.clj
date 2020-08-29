@@ -25,7 +25,7 @@
       ;; then and else branches must match
       [:if-then-else
        (m/app check :dang.ast/boolean)
-       (m/app check (m/not nil) ?body-type)
+       (m/app check ?body-type)
        (m/app check ?body-type)]
       ?body-type
 
@@ -39,27 +39,27 @@
 
       ;; symbols are vars and should be looked up in ctx
       ;; note that in clojure (map key) === (get map key)
-      (m/symbol _ _ :as (m/app ctx (m/not nil) ?var-type))
+      (m/symbol _ _ :as (m/app ctx ?var-type))
       ?var-type
 
       ;; check the binding
       ;; check the body with binding and its type in context
-      [:let ?name (m/app check (m/not nil) ?binding-type)
-       (m/app (check-with ?name ?binding-type) (m/not nil) ?body-type)]
+      [:let ?name (m/app check ?binding-type)
+       (m/app (check-with ?name ?binding-type) ?body-type)]
       ?body-type
 
       ;; check the fn, split it into argument and return types
       ;; check the arg type
       ;; if expected and observed argument types line up, return return type
       [:app
-       (m/app check [?arg-type (m/and (m/not nil) ?return-type)])
+       (m/app check [?arg-type ?return-type])
        (m/app check ?arg-type)]
       ?return-type
 
       ;; add arument and its type to context, check the body
       ;; result is a function from var's type to body's type
       [:lam ?name ?var-type
-       (m/app (check-with ?name ?var-type) (m/not nil) ?body-type)]
+       (m/app (check-with ?name ?var-type) ?body-type)]
       [?var-type ?body-type]
 
       ;; All I remember is fix :: (a -> a) -> a
@@ -68,7 +68,7 @@
 
       ;; TODO: could return error maps and forward them
       ;; no match? type error
-      _otherwise nil)))
+      _ {:type-error [expr ctx]})))
 
 (defn typecheck
   "Takes arbitrary expr 
