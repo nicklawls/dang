@@ -20,7 +20,7 @@
 
 ;; Calva now launches the alias on jack-in
 ;; so one can mess with the sesssion state in
-;; the repl by requireing the relevant functions
+;; the repl by requiring the relevant functions
 ;; usually probably just want to redef server tho
 (defn server []
   (let [input (read-line)]
@@ -39,20 +39,16 @@
   (nil? (dang.typechecker/typecheck (dang.parser/parse-ast "0 1")))
   (keyword "dang.parser" "nat"))
 
-(def detaied-example
-  (dang.parser/parse-ast
-   "let add = fix (\\recurse : Nat -> Nat -> Nat. \\x : Nat. \\y : Nat. if is-zero x then y else 2 in add 3 4"))
-  ;;  "let
-  ;;   add =
-  ;;   fix
-  ;;     (\\recurse : Nat -> Nat -> Nat.
-  ;;       \\x : Nat. \\y : Nat.
-  ;;         if is-zero x
-  ;;           then
-  ;;             y
-  ;;           else
-  ;;             recurse (pred x) (suc y))"))
-
-
-(dang.parser/parse-ast "if is-zero x then y else 2")
-detaied-example
+(comment (->> "let 
+        add = 
+          fix 
+            (\\recurse : Nat -> Nat -> Nat. 
+               \\x : Nat. \\y : Nat. 
+                 if is-zero x then 
+                   y 
+                 else 
+                   recurse (pred x) (suc y)) in add 3 4"
+              dang.parser/parse-ast
+              ;;  dang.typechecker/typecheck
+              ;; dang.evaluate/evaluate
+              ))
