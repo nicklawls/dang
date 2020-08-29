@@ -4,37 +4,45 @@
 
 (def parser
   (insta/parser
-   "expr = app | app-arg | if-then-else | let | lam
+   "expr = bool-lit | nat-lit | builtin | var | 
+           paren-expr | app | fix | if-then-else | let | lam;
     
-    app = app-arg <whitespace> expr
-    app-arg = paren-expr | fix | bool-lit | nat-lit | builtin | var
+    app = expr <whitespace> expr;
+    
     paren-expr = <'(' [whitespace]> expr <[whitespace] ')'>
     
-    lam = <'\\\\' [whitespace]> var <[whitespace] ':' [whitespace]> type <[whitespace] '.' [whitespace]> expr
+    fix = <'fix' whitespace> expr;
     
-    type = type-lit | arrow | paren-arrow
+    lam = <'\\\\' [whitespace]> var 
+          <[whitespace] ':' [whitespace]> type 
+          <[whitespace] '.' [whitespace]> expr;
     
-    arrow = type <[whitespace] '->' [whitespace]> type
+    type = type-lit | arrow | paren-arrow;
     
-    paren-arrow = <'('[whitespace]> arrow <[whitespace]')'>
+    arrow = type <[whitespace] '->' [whitespace]> type;
     
-    type-lit = 'Nat' | 'Bool'
+    paren-arrow = <'('[whitespace]> arrow <[whitespace]')'>;
     
-    fix = <'fix' whitespace> app-arg
+    type-lit = 'Nat' | 'Bool';
     
-    let = <'let' whitespace> var <whitespace '=' whitespace> expr <whitespace 'in' whitespace> expr
+    let = <'let' whitespace> var 
+          <whitespace '=' whitespace> expr 
+          <whitespace 'in' whitespace> expr;
     
-    if-then-else = <'if' whitespace> expr <whitespace 'then' whitespace> expr <whitespace 'else' whitespace> expr
+    if-then-else = <'if' whitespace> expr 
+                   <whitespace 'then' whitespace> expr 
+                   <whitespace 'else' whitespace> expr;
     
-    var = !(keyword whitespace) &lowercase-first #'[a-zA-Z0-9\\-_]+'
-    lowercase-first = #'[a-z]'
-    keyword = 'let' | 'in' | 'fix' | 'if' | 'then' | 'else' | bool-lit | builtin
+    var = !(keyword whitespace) &lowercase-first #'[a-zA-Z0-9\\-_]+';
+    lowercase-first = #'[a-z]';
+    keyword = 'let' | 'in' | 'fix' | 'if' | 'then' | 'else' | bool-lit | builtin;
     
-    bool-lit = 'true' | 'false'
-    nat-lit = #'[0-9]+'
+    bool-lit = 'true' | 'false';
+    nat-lit = #'[0-9]+';
     
-    whitespace = #'(\\s|\\n)+'
-    builtin = 'suc' | 'pred' | 'is-zero'
+    builtin = 'suc' | 'pred' | 'is-zero';
+    
+    whitespace = #'(\\s|\\n)+';
     "))
 
 (defn parse-ast
