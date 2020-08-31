@@ -6,7 +6,7 @@
 (def parser
   (insta/parser
    "expr = bool-lit | nat-lit | builtin | var | 
-           paren-expr | (if-then-else / app) | fix | let | lam;
+           paren-expr | (if-then-else / app / fix / let) | lam;
     
     app = expr <whitespace> expr;
     
@@ -108,4 +108,11 @@
        (insta/parses parser))
   ;; the desired result was at the bottom, added (if-then-else / app)
   (->> "fix (\\rec : Nat -> Nat. \\x : Nat. if is-zero x then 0 else rec (pred x)) 2"
-       parse-ast))
+       parse-ast)
+  ;; then ordered fix and let to get this worked out
+  (->> "let add = fix (\\rec : Nat -> Nat. \\x : Nat. \\y : Nat. 
+        if is-zero x then y else rec (pred x) (suc y)) in add 3 4"
+       parse-ast)
+  ;; resulting parse is [:app [:let ...] 4]
+  ;; not as clean as [;let ... [:app [:app]]], but works!
+  )

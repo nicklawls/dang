@@ -67,8 +67,10 @@
        (m/app check ?arg-type)]
       ?return-type
 
-      [:app _ _]
-      (throw (ex-info "Badly typed application" {:app-type-error [expr ctx]}))
+      [:app ?fn ?arg]
+      (throw (ex-info "Badly typed application" {:app-type-error [expr ctx]
+                                                 :fn-type (check ?fn)
+                                                 :arg-type (check ?arg)}))
 
       ;; add arument and its type to context, check the body
       ;; result is a function from var's type to body's type
