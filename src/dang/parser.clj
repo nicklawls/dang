@@ -6,7 +6,7 @@
 (def parser
   (insta/parser
    "expr = bool-lit | nat-lit | builtin | var | 
-           paren-expr | app | fix | if-then-else | let | lam;
+           paren-expr | (if-then-else / app) | fix | let | lam;
     
     app = expr <whitespace> expr;
     
@@ -100,4 +100,12 @@
   (parse-ast "\\x : Nat. x")
   (parse-ast "fix (\\x : Nat -> Nat. 1)")
   (parse-ast "fix (\\x : Nat -> (Nat -> Bool). 1)")
-  (parse-ast "fix (\\x : Nat -> ((Bool -> Nat) -> Bool). 1)"))
+  (parse-ast "fix (\\x : Nat -> ((Bool -> Nat) -> Bool). 1)")
+  (parse-ast "(recurse (pred x)) (suc y)")
+  (parse-ast "recurse (pred x) (suc y)")
+  ;; fixing the above with [app = expr <ws> expr] broke the following
+  (->> "if is-zero x y then 0 else rec (pred x)"
+       (insta/parses parser))
+  ;; the desired result was at the bottom, added (if-then-else / app)
+  (->> "fix (\\rec : Nat -> Nat. \\x : Nat. if is-zero x then 0 else rec (pred x)) 2"
+       parse-ast))
