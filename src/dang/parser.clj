@@ -1,6 +1,7 @@
 (ns dang.parser
   (:require [clojure.string]
-            [instaparse.core :as insta]))
+            [instaparse.core :as insta]
+            [clojure.edn :as edn]))
 
 (def parser
   (insta/parser
@@ -54,8 +55,8 @@
    (parser input)
    (insta/transform
     {;; literals are the corresponding clj primitives
-     :bool-lit read-string
-     :nat-lit read-string
+     :bool-lit edn/read-string
+     :nat-lit edn/read-string
 
      ;; builtins are keywords
      :builtin #(if (= "suc" %) :dang.ast/succ (keyword "dang.ast" %))
