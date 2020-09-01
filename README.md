@@ -14,7 +14,7 @@ See [notes.md](/notes.md) for more implementational geekery.
 
 To facilitate testing against [`acme-pcf`'s provided test harness](https://github.com/seagreen/acme-pcf-specification#testing-your-implementation), there are three steps involved.
 
-In breif:
+In brief:
 
 ```bash
 # in acme-pcf-specification/
