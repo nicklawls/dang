@@ -44,7 +44,7 @@
 
       ;; symbols are vars and should be looked up in ctx
       ;; note that in clojure (map key) === (get map key)
-      (m/symbol _ _ :as (m/app ctx ?var-type))
+      (m/symbol _ _ :as (m/app ctx (m/not nil) ?var-type))
       ?var-type
 
       (m/symbol _ _)
