@@ -4,7 +4,7 @@
 
 [`acme-pcf`](https://github.com/seagreen/acme-pcf-specification) (courtesy of my boy [@seagreen](https://github.com/seagreen)) is PCF + let + if/then/else + a real syntax, intended to be the [RealWorld](https://github.com/gothinkster/realworld) of language interpreters.
 
-As of writihg, my crack at it here `cloc`s in at 340 lines of Clojure+[instaparse](https://github.com/Engelberg/instaparse)+[meander](https://github.com/noprompt/meander).
+As of writing, my crack at it here `cloc`s in at 340 lines of Clojure+[instaparse](https://github.com/Engelberg/instaparse)+[meander](https://github.com/noprompt/meander).
 
 Going forward, I want to use this repo as a playground for different interpretation and compilation techniques.
 
