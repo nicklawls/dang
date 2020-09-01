@@ -70,7 +70,7 @@
      :var symbol
 
      ;; type decls are either a single type keyword
-     ;; or a binary tree of type keywords
+     ;; or a pair of type decls
      :arrow vector
      :type-lit #(keyword
                  "dang.ast"
