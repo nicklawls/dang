@@ -252,20 +252,7 @@
     [:app ?fn ?arg]
     [:app (eval-next ?fn) ?arg]
 
-    ;; fixy versions, wager I can get away with 
-    ;; just the "fix outside of app" rules
-    [:app
-     [:fix (m/and ?fn [:lam ?name _ ?body] (m/app whnf-next ?fn))]
-     (m/and ?arg (m/app eval-next ?arg))]
-    [:app (substitute ?name [:fix ?fn] ?body) ?arg]
-
-    [:app [:fix (m/and ?fn [:lam _ _ _] (m/app whnf-next ?fn))] ?arg]
-    [:app [:fix ?fn] (eval-next ?arg)]
-
-    [:app [:fix ?fn] ?arg]
-    [:app [:fix (eval-next ?fn)] ?arg]
-
-    ;; fix outside of app
+    ;; fix exprs substitute themselves for the recursive argument
     [:fix (m/and ?fn [:lam ?name _ ?body] (m/app whnf-next ?fn))]
     (substitute ?name [:fix ?fn] ?body)
     [:fix ?fn]
