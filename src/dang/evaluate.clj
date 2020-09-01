@@ -128,80 +128,7 @@
 
     _ expr))
 
-;; whnf(x)    = x
-;; whnf(\x.e) = (\x.e)
-;; 
-;; whnf(e1) = (\x.e)  &  whnf(e{e2/x}) = e'
-;; ---------------------------------------
-;;            whnf((e1 e2)) = e'
-;;            
-;; whnf(e1) = e1' /= (\x.e)
-;; ------------------------
-;; whnf((e1 e2)) = (e1' e2)
-;; 
-;; whnf(if(e1 e2 e3))
-;; 
-
-(defn whnf-next [expr]
-  (m/match expr
-    ;; prims are prims
-
-    ;; don't go under abstractions
-    [:lam ?var ?type ?body]
-    [:lam ?var ?type ?body]
-
-    [:app :dang.ast/is-zero (m/pred number? ?n)]
-    (is-zero ?n)
-
-    [:app :dang.ast/succ (m/pred number? ?n)]
-    (suc ?n)
-
-    [:app :dang.ast/pred (m/pred number? ?n)]
-    (pred ?n)
-
-    [:app (m/keyword _ _ :as ?builtin) ?exp]
-    [:app ?builtin (whnf-next ?exp)]
-
-    ;; find redxes
-    [:app (m/and ?fn [:lam ?var ?type ?body] (m/app whnf-next ?fn))
-     (m/and ?arg (m/app whnf-next ?arg))]
-    (substitute ?var ?arg ?body)
-
-    ;; function is not whnf, arg unknown
-    [:app ?fn ?arg]
-    [:app (whnf-next ?fn) ?arg]
-
-    ;; fixy versions
-    [:app
-     [:fix (m/and ?fn [:lam ?name _ ?body] (m/app whnf-next ?fn))]
-     (m/and ?arg (m/app whnf-next ?arg))]
-    [:app (substitute ?name [:fix ?fn] ?body) ?arg]
-
-    [:app [:fix ?fn] ?arg]
-    [:app [:fix (whnf-next ?fn)] ?arg]
-
-    ;; fix outside of app
-    [:fix (m/and ?fn [:lam ?name _ ?body] (m/app whnf-next ?fn))]
-    (substitute ?name [:fix ?fn] ?body)
-    [:fix ?fn]
-    [:fix (whnf-next ?fn)]
-
-    [:let ?name ?binding ?body]
-    [:app [:lam ?name ::ignore ?body] ?binding]
-
-    [:if-then-else
-     (m/pred boolean? ?cond) ?if-body ?else-body]
-    (if ?cond ?if-body ?else-body)
-
-    [:if-then-else ?cond ?then ?else]
-    [:if-then-else (whnf-next ?cond) ?then ?else]
-
-    _ expr))
-
 ;; evaluate
-;; 
-;; Normal order reduction to normal form
-;; Leftmost outermost redex first
 ;; 
 ;; eval(x) = x
 ;; 
@@ -209,11 +136,11 @@
 ;; ----------------------
 ;; eval((\x.e)) = (\x.e')
 ;; 
-;; whnf(e1) = (\x.e)  eval(e{e2/x}) = e'
+;; eval(e1) = (\x.e)  eval(e{e2/x}) = e'
 ;; ------------------------------------
 ;;          eval((e1 e2)) = e'
 ;; 
-;; whnf(e1) /= (\x.e)  eval(e'1) = e''1  eval(e2) = e'2
+;; eval(e1) /= (\x.e)  eval(e'1) = e''1  eval(e2) = e'2
 ;; ----------------------------------------------------
 ;;             eval((e1 e2)) = (e''1 e'2)
 
@@ -238,22 +165,22 @@
     [:app (m/keyword _ _ :as ?builtin) ?exp]
     [:app ?builtin (eval-next ?exp)]
 
-    ;; want reduce fn to a whnf term one step at a time
-    ;; then reduce arg to a nf term one step at a time
-    ;; sub only when evaluation rule 3 is true do we substitute
+    ;; eval fn one step at a time
+    ;; then eval arg one step at a time
+    ;; only when evaluation rule 3 holds do we substitute
     [:app
-     (m/and ?fn [:lam ?name _ ?body] (m/app whnf-next ?fn))
+     (m/and ?fn [:lam ?name _ ?body] (m/app eval-next ?fn))
      (m/and ?arg (m/app eval-next ?arg))]
     (substitute ?name ?arg ?body)
-    ;; lambda is whnf, arg is not nf
-    [:app (m/and ?fn [:lam _ _ _] (m/app whnf-next ?fn)) ?arg]
+    ;; lambda is ready, arg is not nf
+    [:app (m/and ?fn [:lam _ _ _] (m/app eval-next ?fn)) ?arg]
     [:app ?fn (eval-next ?arg)]
-    ;; lambda is not whnf, arg unknown
+    ;; lambda is not ready, arg unknown
     [:app ?fn ?arg]
     [:app (eval-next ?fn) ?arg]
 
     ;; fix exprs substitute themselves for the recursive argument
-    [:fix (m/and ?fn [:lam ?name _ ?body] (m/app whnf-next ?fn))]
+    [:fix (m/and ?fn [:lam ?name _ ?body] (m/app eval-next ?fn))]
     (substitute ?name [:fix ?fn] ?body)
     [:fix ?fn]
     [:fix (eval-next ?fn)]
