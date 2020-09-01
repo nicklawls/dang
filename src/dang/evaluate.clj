@@ -3,22 +3,6 @@
    [meander.epsilon :as m]
    [clojure.set :as set]))
 
-;; Notes from wrasslin with desugar-fix
-; fix(f) = x if f(x) = x
-; fix(f) = f(fix(f)) -> direct implementation recurses forever
-; fix(f) := let x = f(x) in x
-; some way to hide another fix under a lambda till it's needed
-; hide it in one of the recursive conditions of the function being applied
-; (fix f) f === (\g. )
-;; guess i have to do  (fix f) a = (f (fix f)) a, have the arg in hand? nope, infinities
-;; with lazy y + separate fix and app fix === converged on big gnarly
-;; lazy y with only fix === infinities
-;; HAD :fix AT THE HEAD LOL
-;; yup still infinite
-;; y not try good ol z again?
-;; munged version from the article is equivalent to 
-;; ones I've tried
-
 (def is-zero #(= 0 %))
 
 
@@ -28,7 +12,9 @@
 (def pred #(max 0 (- % 1)))
 
 
-(defn- free-vars [expr]
+(defn- free-vars
+  "returns a clojure set of free variables in expr"
+  [expr]
   (m/match expr
     (m/symbol _ _ :as ?sym) #{?sym}
 
@@ -44,10 +30,9 @@
     _ #{}))
 
 
-;; might be more subtle, see reference impl
-;; actually, seems equivalent, they just don't 
-;; recurse inside the first lam arg, do another if directly
-(defn- forcibly-replace [var new-sym body]
+(defn- forcibly-replace
+  "Unilaterally replace every occurence of var with new-sym"
+  [var new-sym body]
   (m/match body
     (m/let [?var var] ?var)
     new-sym
@@ -83,16 +68,27 @@
 ;; (fun y -> e'){e/x} = (fun fresh -> (e'[fresh/y]){e/x} ) y is in FV(e)
 ;; 
 (defn- substitute
-  "\"a correct definition of it eluded mathemeticians for centuries\""
+  "Substitute `substitution` for `var` in `expr`
+   expr{substitution/var} in the literature
+   
+   'Capture-avoiding' because it leaves matching 
+   lambda arguments alone while also taking care to 
+   rename lambda arguments that match a free variable in the
+   value being substituted in
+   
+   Source: 
+   https://www.cs.cornell.edu/courses/cs3110/2019sp/textbook/interp/subst_lambda.html
+   
+   \"a correct definition of it eluded mathemeticians for centuries\""
   [var substitution expr]
-  (m/match [expr var]
-    [(m/symbol _ _ :as ?var-name) ?var-name] substitution
-    [(m/symbol _ _ :as ?var-name) _] expr
+  (m/match expr
+    (m/let [?var-name var] (m/symbol _ _ :as ?var-name)) substitution
+    (m/symbol _ _ :as ?var-name) expr
 
     ;; oh snap, this is lexical scope right here
     ;; skip the outer variable, whatever evaluation procedure
     ;; will just apply the evaluated arg next?
-    [[:lam ?var ?type ?body] ?var] ;; (fn [x] (x + x)) x
+    (m/let [?var var] [:lam ?var ?type ?body])
     expr
 
     ;; if we have a free var clash, generate a fresh var
@@ -100,30 +96,29 @@
     ;; then substitute as usual
     ;; otherwise substitute as usual
     ;;       
-    [[:lam ?lam-var ?type ?body] ?var]
+    [:lam ?lam-var ?type ?body]
     (if
-     (contains? (free-vars ?body) ?lam-var)
+     (contains? (free-vars substitution) ?lam-var)
 
       (let [new-sym (gensym "subst")
             new-body
             (forcibly-replace ?lam-var new-sym ?body)]
-        [:lam new-sym ?type (substitute ?var substitution new-body)]) ;; (fn [y] ())
+        [:lam new-sym ?type (substitute var substitution new-body)])
 
-      ;; double-lam hitting here
-      [:lam ?lam-var ?type (substitute ?var substitution ?body)])
+      [:lam ?lam-var ?type (substitute var substitution ?body)])
 
-    [[:app ?fn ?arg] _]
+    [:app ?fn ?arg]
     [:app
      (substitute var substitution ?fn)
      (substitute var substitution ?arg)]
 
-    [[:let ?name ?binding ?body] _]
+    [:let ?name ?binding ?body]
     (substitute
      var
      substitution [:app [:lam ?name ::ignore ?body] ?binding])
 
     ;; fix and if-then-else don't need anything extra
-    [(m/pred vector? ?vec) _]
+    (m/pred vector? ?vec)
     (mapv #(substitute var substitution %) ?vec)
 
     _ expr))
@@ -144,7 +139,13 @@
 ;; ----------------------------------------------------
 ;;             eval((e1 e2)) = (e''1 e'2)
 
-(defn- eval-next ""
+(defn- eval-next
+  "Small-step evaluator: applies a single matching
+   reduction rule to the input expression
+   
+   Much inspiration from this paper:
+   https://www.itu.dk/~sestoft/papers/sestoft-lamreduce.pdf
+   "
   [expr]
   (m/match expr
     (m/symbol _ _ :as ?sym)
@@ -236,6 +237,9 @@
        eval-next ;; discarge else
        ))
 
+;; Used the following sequence of manual substitutions
+;; to eventually figure out the rule for fix
+
 ;; ((fix (\rec x. if (zero x) then 0 else rec (pred x))) 2) 
 ;; leftost outermost = "app" (fix lambda) lambda
 
@@ -266,3 +270,19 @@
        eval-next)
   (->> [:fix [:lam 'x :dang.ast/nat 1]]
        eval-next))
+
+;; Notes from wrasslin with desugar-fix
+;; fix(f) = x if f(x) = x
+;; fix(f) = f(fix(f)) -> direct implementation recurses forever
+;; fix(f) := let x = f(x) in x
+;; some way to hide another fix under a lambda till it's needed
+;; hide it in one of the recursive conditions of the function being applied
+;; (fix f) f === (\g. )
+;; guess i have to do  (fix f) a = (f (fix f)) a, have the arg in hand? nope, infinities
+;; with lazy y + separate fix and app fix === converged on big gnarly
+;; lazy y with only fix === infinities
+;; HAD :fix AT THE HEAD LOL
+;; yup still infinite
+;; y not try good ol z again?
+;; munged version from the article is equivalent to 
+;; ones I've tried
