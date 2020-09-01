@@ -18,11 +18,12 @@ In brief:
 
 ```bash
 # in acme-pcf-specification/
-stack install
+> stack install
 
 # then, in dang/
-clj -O:dang-socket
-acme-pcf-test run.sh
+> clj -O:dang-socket # starts a repl, so maybe do this in a separate terminal tab or tmux pane
+
+> acme-pcf-test run.sh
 ```
 
 In more detail:
