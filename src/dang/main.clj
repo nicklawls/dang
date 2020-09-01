@@ -8,15 +8,24 @@
 (defn eval-pcf [str]
   (try
     (let [syntax-str (clojure.string/trim str)
-          ast (dang.parser/parse-ast syntax-str)]
+          ast (dang.parser/parse-ast syntax-str)
+          typ (dang.typechecker/typecheck ast)
+          res (dang.evaluate/evaluate ast)]
+      (tap> {:in str :parse ast :type typ :out res})
       (if (:reason ast)
-        {:parse-error  ast}
-        (let [typ (dang.typechecker/typecheck ast)]
-          (if (:type-error typ)
-            typ
-        ;; TODO: error handling for botched evaluation
-            (dang.evaluate/evaluate ast)))))
-    (catch Exception e  e)))
+        {:parse-error ast}
+        (if (:type-error typ) typ res)))
+    (catch Exception e e)))
+
+(defonce tap-atom (atom []))
+
+(defn append-atom [x] (swap! tap-atom conj x))
+
+(defn reset-tap [] (reset! tap-atom []))
+
+(comment (add-tap append-atom)
+         (reset-tap)
+         @tap-atom)
 
 ;; Calva now launches the alias on jack-in
 ;; so one can mess with the sesssion state in
