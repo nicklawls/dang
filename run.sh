@@ -4,7 +4,7 @@
 # return result, then exit
 
 # read with -r to prevent backslash escaping
-# and with -D to collect all lines of example
+# and with -d to collect all lines of example
 read -r -d EOF input
 
 output=$(echo $input | netcat localhost 5575)
