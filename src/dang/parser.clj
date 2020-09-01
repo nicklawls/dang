@@ -10,7 +10,7 @@
     
     app = expr <whitespace> expr;
     
-    paren-expr = <'(' [whitespace]> expr <[whitespace] ')'>
+    <paren-expr> = <'(' [whitespace]> expr <[whitespace] ')'>
     
     fix = <'fix' whitespace> expr;
     
@@ -18,11 +18,11 @@
           <[whitespace] ':' [whitespace]> type 
           <[whitespace] '.' [whitespace]> expr;
     
-    type = type-lit | arrow | paren-arrow;
+    <type> = type-lit | arrow | paren-arrow;
     
     arrow = type <[whitespace] '->' [whitespace]> type;
     
-    paren-arrow = <'('[whitespace]> arrow <[whitespace]')'>;
+    <paren-arrow> = <'('[whitespace]> arrow <[whitespace]')'>;
     
     type-lit = 'Nat' | 'Bool';
     
@@ -61,20 +61,17 @@
      ;; builtins are keywords
      :builtin #(if (= "suc" %) :dang.ast/succ (keyword "dang.ast" %))
 
-     ;; main expr nodes just wrap other combos,
-     ;; extra tag is redundant
+     ;; expr just wraps other single nodes,
+     ;; only left because the instaparse docs
+     ;; recommend your top level node not be <omitted>
      :expr identity
-     :paren-expr identity
-     :app-arg identity
 
      ;; binding names are symbols, because we got em
      :var symbol
 
      ;; type decls are either a single type keyword
      ;; or a binary tree of type keywords
-     :type identity
      :arrow vector
-     :paren-arrow identity
      :type-lit #(keyword
                  "dang.ast"
                  (clojure.string/lower-case %1))
