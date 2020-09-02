@@ -12,7 +12,7 @@ See [notes.md](/notes.md) for more implementational geekery.
 
 ## Run and Test
 
-To facilitate testing against [`acme-pcf`'s provided test harness](https://github.com/seagreen/acme-pcf-specification#testing-your-implementation), there are three steps involved.
+To facilitate testing against [`acme-pcf`'s provided test harness](https://github.com/seagreen/acme-pcf-specification/tree/master/spec#testing-your-implementation), there are three steps involved.
 
 In brief:
 
