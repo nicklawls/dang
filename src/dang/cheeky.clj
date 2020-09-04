@@ -1,15 +1,61 @@
 (ns dang.cheeky
   (:require [meander.epsilon :as m]
             [dang.evaluate]
-            [clojure.test :as test :refer [is]]))
+            [clojure.test :as test :refer [is]]
+            [clojure.walk :as walk]))
 
 (def fix (fn [f] (fn [x] ((f (fix f)) x))))
 
-(fix (fn [_] 1))
+
+
+(walk/postwalk #(get {1 'YO} % %) '[1 2 (+ 1 1)])
+(walk/postwalk-replace {1 'YO} '[1 2 (+ 1 1)])
+
+
+
+
+(walk/postwalk-replace
+ {'rec (second dang.evaluate/fix-realistic)}
+ '[:app
+   [:fix
+    [:lam
+     rec
+     [:dang.ast/nat :dang.ast/nat]
+     [:lam bleh :dang.ast/nat [:if-then-else [:app :dang.ast/is-zero bleh] 0 [:app rec [:app :dang.ast/pred bleh]]]]]]
+   2])
+
 
 (defn fixx
   ([f] (f f))
-  ([f x] ((f (fixx f)) x)))
+  ([f x] ((fix f) x)))
+
+(def vfix "variadic fix"
+  (fn [f] (fn [& args] (apply f (vfix f) args))))
+
+(def add (fn [recurse] (fn [x] (fn [y] (= 0 x) y ((recurse (- x 1)) (+ 1 y))))))
+
+
+
+(((vfix add) 35) 5)
+((vfix add) 35 5)
+
+((vfix (fn [rec x y]
+         (if (= y 0) x
+             (rec (dang.evaluate/suc x) (dang.evaluate/pred y))))) 35 5)
+
+(fix (fn [_] 1))
+((fix (fn [rec]
+        (fn [x] (if (dang.evaluate/is-zero x)
+                  0 (rec (dang.evaluate/pred x)))))) 23)
+
+(fixx (fn [_] 1))
+(fixx (fn [rec]
+        (fn [x] (if (dang.evaluate/is-zero x)
+                  0 (rec (dang.evaluate/pred x))))) 23)
+(is (= 0
+       ((fix (fn [rec]
+               (fn [x] (if (dang.evaluate/is-zero x)
+                         0 (rec (dang.evaluate/pred x)))))) 23)))
 
 (defn- compyl "( ͡° ͜ʖ ͡°)" [expr]
   (m/match expr
@@ -20,11 +66,15 @@
     [:lam (m/symbol _ _ :as ?var) _ ?body]
     `(fn ~[?var] ~(compyl ?body))
 
+    ;; [:app [:fix ?fn] ?arg]
+    ;; `(fixx ~(compyl ?fn) ~(compyl ?arg))
+
     [:app ?fn ?arg]
     `(~(compyl ?fn) ~(compyl ?arg))
 
-    [:fix ?fn]
-    `(fix ~(compyl ?fn))
+    [:fix (m/and [:lam ?var _ ?body] ?fn)]
+    ;; TODO; crashes, mix in clojure fix
+    (compyl (walk/postwalk-replace {?var [:fix ?fn]} ?body))
 
     [:let (m/symbol _ _ :as ?var) ?binding ?body]
     `(let ~[?var (compyl ?binding)] ~(compyl ?body))
@@ -43,31 +93,8 @@
   (resolve 'x)
   (evaluate 'x)
   (evaluate [:app :dang.ast/succ 'x])
-  (fixx (fn [_] 1))
-  (fixx (fn [rec]
-          (fn [x] (if (dang.evaluate/is-zero x)
-                    0 (rec (dang.evaluate/pred x))))) 23)
-  (is (= 0
-         ((fix (fn [rec]
-                 (fn [x] (if (dang.evaluate/is-zero x)
-                           0 (rec (dang.evaluate/pred x)))))) 23)))
 
-  (def vfix "variadic fix"
-    (fn [f] (fn [& args] (apply f (vfix f) args))))
-
-  (def add (fn [recurse] (fn [x] (fn [y] (= 0 x) y ((recurse (- x 1)) (+ 1 y))))))
-
-  (compyl dang.evaluate/fix-realistic)
-
-  (dang.cheeky/fix
-   (clojure.core/fn [rec] (clojure.core/fn [bleh] (if (dang.evaluate/is-zero bleh) 0 (rec (dang.evaluate/pred bleh)))))
-   2)
-
-  (((fixx add) 2) 3)
-
-  ((vfix (fn [rec x y]
-           (if (= y 0) x
-               (rec (dang.evaluate/suc x) (dang.evaluate/pred y))))) 35 5)
+  (compyl [:fix [:lam 'x ::ignore 1]])
 
   (is (= true (compyl true)))
   (is (= '(a b) (compyl '[:app a b])))
@@ -84,6 +111,11 @@
                   compyl
                   eval)))
 
+  (->> dang.evaluate/fix-realistic
+       compyl
+    ;;    eval
+       )
   (is (= 0 (->> dang.evaluate/fix-realistic
                 compyl
-                eval))))
+                ;; eval
+                ))))
