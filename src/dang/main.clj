@@ -3,14 +3,17 @@
             [clojure.repl]
             [dang.parser]
             [dang.typechecker]
-            [dang.evaluate]))
+            [dang.evaluate]
+            [dang.cheeky]))
 
 (defn eval-pcf [str]
   (try
     (let [syntax-str (clojure.string/trim str)
           ast (dang.parser/parse-ast syntax-str)
           typ (dang.typechecker/typecheck ast)
-          res (dang.evaluate/evaluate ast)]
+          res (dang.cheeky/evaluate ast)
+          ;; res (dang.evaluate/evaluate ast)
+          ]
       (tap> {:in str :parse ast :type typ :out res})
       (if (:reason ast)
         {:parse-error ast}
@@ -36,19 +39,18 @@
     (println (eval-pcf input))))
 
 
-(comment (->> nil ;; (java.io.BufferedReader. *in*)
-              line-seq
-              doall
-              vec
-              (clojure.string/join "\n")))
-
 (comment
+  (dang.typechecker/typecheck [:app 0 1])
+  (->> nil ;; (java.io.BufferedReader. *in*)
+       line-seq
+       doall
+       vec
+       (clojure.string/join "\n"))
   (nil? (dang.typechecker/typecheck (dang.parser/parse-ast "true")))
   (nil? (dang.typechecker/typecheck (dang.parser/parse-ast "is-zero 1")))
   (nil? (dang.typechecker/typecheck (dang.parser/parse-ast "0 1")))
-  (keyword "dang.parser" "nat"))
-
-(comment (->> "let 
+  (keyword "dang.parser" "nat")
+  (->> "let 
         add = 
           fix 
             (\\recurse : Nat -> Nat -> Nat. 
@@ -57,7 +59,7 @@
                    y 
                  else 
                    recurse (pred x) (suc y)) in add 3 4"
-              dang.parser/parse-ast
+       dang.parser/parse-ast
               ;;  dang.typechecker/typecheck
               ;; dang.evaluate/evaluate
-              ))
+       ))
