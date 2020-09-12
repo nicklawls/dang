@@ -42,7 +42,7 @@
 (defn evaluate [ast]
   (try ((comp eval compyl) ast)
        (catch RuntimeException e
-         [e (p/p (compyl ast))])))
+         [e (p/pprint (compyl ast))])))
 
 
 (comment
