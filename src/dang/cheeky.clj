@@ -1,61 +1,9 @@
 (ns dang.cheeky
   (:require [meander.epsilon :as m]
             [dang.evaluate]
+            [clojure.pprint :as p]
             [clojure.test :as test :refer [is]]
             [clojure.walk :as walk]))
-
-(def fix (fn [f] (fn [x] ((f (fix f)) x))))
-
-
-
-(walk/postwalk #(get {1 'YO} % %) '[1 2 (+ 1 1)])
-(walk/postwalk-replace {1 'YO} '[1 2 (+ 1 1)])
-
-
-
-
-(walk/postwalk-replace
- {'rec (second dang.evaluate/fix-realistic)}
- '[:app
-   [:fix
-    [:lam
-     rec
-     [:dang.ast/nat :dang.ast/nat]
-     [:lam bleh :dang.ast/nat [:if-then-else [:app :dang.ast/is-zero bleh] 0 [:app rec [:app :dang.ast/pred bleh]]]]]]
-   2])
-
-
-(defn fixx
-  ([f] (f f))
-  ([f x] ((fix f) x)))
-
-(def vfix "variadic fix"
-  (fn [f] (fn [& args] (apply f (vfix f) args))))
-
-(def add (fn [recurse] (fn [x] (fn [y] (= 0 x) y ((recurse (- x 1)) (+ 1 y))))))
-
-
-
-(((vfix add) 35) 5)
-((vfix add) 35 5)
-
-((vfix (fn [rec x y]
-         (if (= y 0) x
-             (rec (dang.evaluate/suc x) (dang.evaluate/pred y))))) 35 5)
-
-(fix (fn [_] 1))
-((fix (fn [rec]
-        (fn [x] (if (dang.evaluate/is-zero x)
-                  0 (rec (dang.evaluate/pred x)))))) 23)
-
-(fixx (fn [_] 1))
-(fixx (fn [rec]
-        (fn [x] (if (dang.evaluate/is-zero x)
-                  0 (rec (dang.evaluate/pred x))))) 23)
-(is (= 0
-       ((fix (fn [rec]
-               (fn [x] (if (dang.evaluate/is-zero x)
-                         0 (rec (dang.evaluate/pred x)))))) 23)))
 
 (defn- compyl "( ͡° ͜ʖ ͡°)" [expr]
   (m/match expr
@@ -66,15 +14,16 @@
     [:lam (m/symbol _ _ :as ?var) _ ?body]
     `(fn ~[?var] ~(compyl ?body))
 
-    ;; [:app [:fix ?fn] ?arg]
-    ;; `(fixx ~(compyl ?fn) ~(compyl ?arg))
-
     [:app ?fn ?arg]
     `(~(compyl ?fn) ~(compyl ?arg))
 
-    [:fix (m/and [:lam ?var _ ?body] ?fn)]
-    ;; TODO; crashes, mix in clojure fix
-    (compyl (walk/postwalk-replace {?var [:fix ?fn]} ?body))
+    [:fix [:lam ?var _ ?body]]
+    ;; TODO still crashes on last example
+    ;; "can recur from tail position"
+    ;; knowing what I know now, can prob replace
+    ;; recur with a reference to the code of the 
+    ;; recursive function
+    (walk/postwalk-replace {?var 'recur} (compyl ?body))
 
     [:let (m/symbol _ _ :as ?var) ?binding ?body]
     `(let ~[?var (compyl ?binding)] ~(compyl ?body))
@@ -86,15 +35,14 @@
 
 (defn evaluate [ast]
   (try ((comp eval compyl) ast)
-       (catch RuntimeException _  ast)))
+       (catch RuntimeException e
+         [e (p/p (compyl ast))])))
 
 
 (comment
   (resolve 'x)
   (evaluate 'x)
   (evaluate [:app :dang.ast/succ 'x])
-
-  (compyl [:fix [:lam 'x ::ignore 1]])
 
   (is (= true (compyl true)))
   (is (= '(a b) (compyl '[:app a b])))
@@ -111,11 +59,45 @@
                   compyl
                   eval)))
 
-  (->> dang.evaluate/fix-realistic
+  (evaluate dang.evaluate/fix-realistic)
+  ;; needs to handle fix on a -> a funcitons
+  (evaluate [:fix [:lam 'x ::ignore 1]])
+  ((fn named [] 1))
+
+  (loop [_x (fn [_x] 1)] 1)
+
+  (loop [] 1)
+
+  ((fn [gend]
+     (loop [bleh gend]
+       (if (dang.evaluate/is-zero bleh) 0
+           (recur (dang.evaluate/pred bleh))))) 2)
+
+  ((fn [bleh]
+     (println bleh)
+     (if (dang.evaluate/is-zero bleh)
+       0 (recur (dang.evaluate/pred bleh)))) 2)
+
+  (->> [:fix [:lam 'x ::ignore [:app :dang.ast/succ 1]]]
+       second
+       (#(nth % 3))
        compyl
+       (walk/postwalk-replace {'x 'recur})
+    ;;    ((fn [arg] `(~arg)))
+    ;;    eval
+       )
+
+
+  ;; and (a -> a) -> a -> a functions
+  (->> dang.evaluate/fix-realistic
+       second
+       second
+       (#(nth % 3))
+       compyl
+       (walk/postwalk-replace {'rec 'recur})
+    ;;    ((fn [arg] `(~arg 2)))
     ;;    eval
        )
   (is (= 0 (->> dang.evaluate/fix-realistic
                 compyl
-                ;; eval
-                ))))
+                eval))))
