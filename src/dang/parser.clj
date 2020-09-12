@@ -3,7 +3,7 @@
             [instaparse.core :as insta]
             [clojure.edn :as edn]))
 
-(def parser
+(def ^:private parser
   (insta/parser
    "expr = bool-lit | nat-lit | builtin | var | 
            paren-expr | (if-then-else / app / fix / let) | lam;
