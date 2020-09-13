@@ -2,7 +2,9 @@
  :deps {instaparse
         {:mvn/version "1.4.10"}
         meander/epsilon
-        {:mvn/version "0.0.480"}}
+        {:mvn/version "0.0.480"}
+        io.replikativ/datahike
+        {:mvn/version "0.3.1"}}
  :aliases
  {:dang-socket
   {:jvm-opts
